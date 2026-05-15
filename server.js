@@ -1,15 +1,53 @@
 const express = require('express');
 const { Pool } = require('pg');
 const app = express();
+const cors = require('cors');
+
 app.use(express.json());
+app.use(cors());
+
+// --- GLOBAL REQUEST LOGGER ---
+app.use((req, res, next) => {
+    console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+    next();
+});
 
 // Iyong Neon Connection String
 const connectionString = "postgresql://neondb_owner:npg_kczdR6Ajyo7C@ep-odd-cake-aozdfekp-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
 
 const pool = new Pool({
     connectionString: connectionString,
-    ssl: { rejectUnauthorized: false }
 });
+
+// --- DATABASE INITIALIZATION ---
+const initDb = async () => {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS anti_cheat_logs (
+                id SERIAL PRIMARY KEY,
+                hwid TEXT,
+                ip TEXT,
+                log_message TEXT,
+                date_recorded TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS game_hashes (
+                id SERIAL PRIMARY KEY,
+                hash_value VARCHAR(64) UNIQUE NOT NULL,
+                status VARCHAR(20) DEFAULT 'active',
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS heartbeats (
+                hwid TEXT PRIMARY KEY,
+                ip TEXT,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log(" - Database Tables Verified/Created.");
+    } catch (err) {
+        console.error(" - Database Init Error:", err.message);
+    }
+};
+initDb();
 
 // TEST ENDPOINT (Para malaman kung working ang API)
 app.get('/', (req, res) => res.send('Anti-Cheat API is ONLINE'));
@@ -38,7 +76,7 @@ app.post('/api/heartbeat', async (req, res) => {
 // [C] HASH AUTH
 app.get('/api/hashes', async (req, res) => {
     try {
-        const result = await pool.query('SELECT game_name, hash_value, status FROM game_hashes WHERE status = \'active\'');
+        const result = await pool.query('SELECT hash_value, status, last_updated FROM game_hashes WHERE status = \'active\'');
         res.json(result.rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -75,18 +113,18 @@ app.get('/api/admin/heartbeats', async (req, res) => {
 // [F] MANAGE HASHES
 app.get('/api/admin/hashes', async (req, res) => {
     try {
-        const result = await pool.query('SELECT game_name, hash_value, status FROM game_hashes ORDER BY id DESC');
+        const result = await pool.query('SELECT hash_value, status, last_updated FROM game_hashes ORDER BY id DESC');
         res.json(result.rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/admin/hashes', async (req, res) => {
-    const { game_name, hash_value, status } = req.body;
-    console.log(`[ADMIN] Saving hash: ${hash_value} (${game_name})`);
+    const { hash_value, status } = req.body;
+    console.log(`[ADMIN] Saving hash: ${hash_value}`);
     try {
         await pool.query(
-            'INSERT INTO game_hashes (game_name, hash_value, status) VALUES ($1, $2, $3) ON CONFLICT (hash_value) DO UPDATE SET game_name = EXCLUDED.game_name, status = EXCLUDED.status',
-            [game_name, hash_value, status || 'active']
+            'INSERT INTO game_hashes (hash_value, status, last_updated) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (hash_value) DO UPDATE SET status = EXCLUDED.status, last_updated = CURRENT_TIMESTAMP',
+            [hash_value, status || 'active']
         );
         console.log(" - Hash saved successfully.");
         res.json({ status: 'ok' });
