@@ -113,12 +113,13 @@ app.get('/api/hashes', async (req, res) => {
 
 // [D] DASHBOARD DATA
 app.get('/api/admin/logs', async (req, res) => {
-    console.log(`[${new Date().toLocaleString()}] Admin Panel is fetching logs...`);
+    const phTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true });
+    console.log(`[${phTime}] Admin Panel is fetching logs...`);
     try {
         // Ginawang mas simple ang DATE format para sa C++ Parser
         const query = `
             SELECT hwid, ip, log_message, 
-            TO_CHAR(date_recorded, 'YYYY-MM-DD HH24:MI:SS') as date_recorded 
+            TO_CHAR(date_recorded AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD HH24:MI:SS') as date_recorded 
             FROM anti_cheat_logs 
             ORDER BY date_recorded DESC 
             LIMIT 500
