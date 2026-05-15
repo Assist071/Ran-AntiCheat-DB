@@ -82,13 +82,18 @@ app.get('/api/admin/hashes', async (req, res) => {
 
 app.post('/api/admin/hashes', async (req, res) => {
     const { game_name, hash_value, status } = req.body;
+    console.log(`[ADMIN] Saving hash: ${hash_value} (${game_name})`);
     try {
         await pool.query(
             'INSERT INTO game_hashes (game_name, hash_value, status) VALUES ($1, $2, $3) ON CONFLICT (hash_value) DO UPDATE SET game_name = EXCLUDED.game_name, status = EXCLUDED.status',
             [game_name, hash_value, status || 'active']
         );
+        console.log(" - Hash saved successfully.");
         res.json({ status: 'ok' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error(" - Error saving hash:", err.message);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 const PORT = process.env.PORT || 3000;
