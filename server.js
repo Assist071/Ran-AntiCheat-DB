@@ -30,18 +30,18 @@ const initDb = async () => {
                 hwid TEXT,
                 ip TEXT,
                 log_message TEXT,
-                date_recorded TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                date_recorded TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')
             );
             CREATE TABLE IF NOT EXISTS game_hashes (
                 id SERIAL PRIMARY KEY,
                 hash_value VARCHAR(64) UNIQUE NOT NULL,
                 status VARCHAR(20) DEFAULT 'active',
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                last_updated TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')
             );
             CREATE TABLE IF NOT EXISTS heartbeats (
                 hwid TEXT PRIMARY KEY,
                 ip TEXT,
-                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                last_seen TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')
             );
         `);
         console.log(" - Database Tables Verified/Created.");
@@ -96,7 +96,7 @@ app.post('/api/heartbeat', async (req, res) => {
     const { hwid, ip } = req.body;
     try {
         await pool.query(
-            'INSERT INTO heartbeats (hwid, ip, last_seen) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (hwid) DO UPDATE SET last_seen = EXCLUDED.last_seen, ip = EXCLUDED.ip',
+            'INSERT INTO heartbeats (hwid, ip, last_seen) VALUES ($1, $2, (CURRENT_TIMESTAMP AT TIME ZONE \'UTC\' AT TIME ZONE \'Asia/Manila\')) ON CONFLICT (hwid) DO UPDATE SET last_seen = EXCLUDED.last_seen, ip = EXCLUDED.ip',
             [hwid, ip]
         );
         res.json({ status: 'ok' });
@@ -119,7 +119,7 @@ app.get('/api/admin/logs', async (req, res) => {
         // Ginawang mas simple ang DATE format para sa C++ Parser
         const query = `
             SELECT hwid, ip, log_message, 
-            TO_CHAR(date_recorded AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila', 'YYYY-MM-DD HH24:MI:SS') as date_recorded 
+            TO_CHAR(date_recorded, 'YYYY-MM-DD HH24:MI:SS') as date_recorded 
             FROM anti_cheat_logs 
             ORDER BY date_recorded DESC 
             LIMIT 500
@@ -154,7 +154,7 @@ app.post('/api/admin/hashes', async (req, res) => {
     console.log(`[ADMIN] Saving hash: ${hash_value}`);
     try {
         await pool.query(
-            'INSERT INTO game_hashes (hash_value, status, last_updated) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (hash_value) DO UPDATE SET status = EXCLUDED.status, last_updated = CURRENT_TIMESTAMP',
+            'INSERT INTO game_hashes (hash_value, status, last_updated) VALUES ($1, $2, (CURRENT_TIMESTAMP AT TIME ZONE \'UTC\' AT TIME ZONE \'Asia/Manila\')) ON CONFLICT (hash_value) DO UPDATE SET status = EXCLUDED.status, last_updated = (CURRENT_TIMESTAMP AT TIME ZONE \'UTC\' AT TIME ZONE \'Asia/Manila\')',
             [hash_value, status || 'active']
         );
         console.log(" - Hash saved successfully.");
