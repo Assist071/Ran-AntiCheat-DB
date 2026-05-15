@@ -149,12 +149,12 @@ app.get('/api/admin/logs', async (req, res) => {
 // [E] HEARTBEAT DATA FOR DASHBOARD
 app.get('/api/admin/heartbeats', async (req, res) => {
     try {
-        // 30 seconds timeout for accurate ONLINE status
+        // 30 seconds timeout - comparing PH Time correctly
         const query = `
             SELECT hwid, ip,
             TO_CHAR(last_seen, 'YYYY-MM-DD HH24:MI:SS') as last_seen
             FROM heartbeats 
-            WHERE last_seen > NOW() - INTERVAL '10 seconds'
+            WHERE last_seen > (NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') - INTERVAL '30 seconds'
         `;
         const result = await pool.query(query);
         res.json(result.rows);
