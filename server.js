@@ -21,6 +21,11 @@ const pool = new Pool({
     connectionString: connectionString,
 });
 
+// Siguraduhin na lahat ng bagong connection sa pool ay naka-Asia/Manila timezone
+pool.on('connect', (client) => {
+    client.query("SET TIME ZONE 'Asia/Manila'");
+});
+
 // --- DATABASE INITIALIZATION ---
 const initDb = async () => {
     try {
