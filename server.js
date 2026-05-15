@@ -157,12 +157,12 @@ app.delete('/api/admin/logs', async (req, res) => {
 // [E] HEARTBEAT DATA FOR DASHBOARD
 app.get('/api/admin/heartbeats', async (req, res) => {
     try {
-        // 15 seconds timeout - Accurate and stable
+        // Return raw epoch seconds for 100% accuracy in C++
         const query = `
             SELECT hwid, ip,
-            TO_CHAR(last_seen, 'YYYY-MM-DD HH24:MI:SS') as last_seen
+            EXTRACT(EPOCH FROM last_seen)::INT as last_seen
             FROM heartbeats 
-            WHERE last_seen > NOW() - INTERVAL '15 seconds'
+            WHERE last_seen > NOW() - INTERVAL '30 days'
         `;
         const result = await pool.query(query);
         res.json(result.rows);
