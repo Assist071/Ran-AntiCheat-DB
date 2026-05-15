@@ -2,6 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const app = express();
 const cors = require('cors');
+const fs = require('fs');
 
 app.use(express.json());
 app.use(cors());
@@ -52,13 +53,35 @@ initDb();
 // TEST ENDPOINT (Para malaman kung working ang API)
 app.get('/', (req, res) => res.send('Anti-Cheat API is ONLINE'));
 
+app.get('/api/test-log', (req, res) => {
+    try {
+        const debugMsg = `[${new Date().toLocaleString()}] TEST LOG FROM BROWSER\n`;
+        fs.appendFileSync('hash_checker_debug.txt', debugMsg);
+        res.send('Test log recorded! Check hash_checker_debug.txt');
+    } catch (err) {
+        res.status(500).send("Error writing file: " + err.message);
+    }
+});
+
 // [A] DETECTION LOGS
 app.post('/api/log', async (req, res) => {
     const { hwid, ip, log } = req.body;
+    
+    // --- DEBUG FILE LOGGING ---
+    try {
+        const debugMsg = `[${new Date().toLocaleString()}] HWID: ${hwid} | IP: ${ip} | LOG: ${log}\n`;
+        fs.appendFileSync('hash_checker_debug.txt', debugMsg);
+    } catch (fErr) {
+        console.error(" - File Log Error:", fErr.message);
+    }
+
     try {
         await pool.query('INSERT INTO anti_cheat_logs (hwid, ip, log_message) VALUES ($1, $2, $3)', [hwid, ip, log]);
         res.json({ status: 'ok' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        console.error(" - DB Log Error:", err.message);
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 // [B] HEARTBEATS
