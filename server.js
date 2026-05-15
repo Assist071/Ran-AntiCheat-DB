@@ -62,8 +62,9 @@ const initDb = async () => {
 };
 initDb();
 
-// TEST ENDPOINT (Para malaman kung working ang API)
+// TEST ENDPOINTS
 app.get('/', (req, res) => res.send('Anti-Cheat API is ONLINE'));
+app.get('/ping', (req, res) => res.send('pong'));
 
 app.get('/api/test-log', (req, res) => {
     try {
