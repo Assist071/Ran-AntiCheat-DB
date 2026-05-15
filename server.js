@@ -9,7 +9,8 @@ app.use(cors());
 
 // --- GLOBAL REQUEST LOGGER ---
 app.use((req, res, next) => {
-    console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+    const phTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true });
+    console.log(`[${phTime}] ${req.method} ${req.url}`);
     next();
 });
 
@@ -55,9 +56,9 @@ app.get('/', (req, res) => res.send('Anti-Cheat API is ONLINE'));
 
 app.get('/api/test-log', (req, res) => {
     try {
-        console.log(" - Received TEST LOG request from browser.");
+        const phTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true });
         const debugPath = 'C:\\Users\\User\\Desktop\\Ran-AntiCheat-DB\\hash_checker_debug.txt';
-        const debugMsg = `[${new Date().toLocaleString()}] TEST LOG FROM BROWSER\n`;
+        const debugMsg = `[${phTime}] TEST LOG FROM BROWSER\n`;
         fs.appendFileSync(debugPath, debugMsg);
         res.send('Test log recorded at ' + debugPath);
     } catch (err) {
@@ -72,8 +73,9 @@ app.post('/api/log', async (req, res) => {
     
     // --- DEBUG FILE LOGGING ---
     try {
+        const phTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true });
         const debugPath = 'C:\\Users\\User\\Desktop\\Ran-AntiCheat-DB\\hash_checker_debug.txt';
-        const debugMsg = `[${new Date().toLocaleString()}] HWID: ${hwid} | IP: ${ip} | LOG: ${log}\n`;
+        const debugMsg = `[${phTime}] HWID: ${hwid} | IP: ${ip} | LOG: ${log}\n`;
         fs.appendFileSync(debugPath, debugMsg);
         console.log(" - Debug log written to file.");
     } catch (fErr) {
