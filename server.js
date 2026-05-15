@@ -12,7 +12,7 @@ const pool = new Pool({
 });
 
 // TEST ENDPOINT (Para malaman kung working ang API)
-app.get('/', (res) => res.send('Anti-Cheat API is ONLINE'));
+app.get('/', (req, res) => res.send('Anti-Cheat API is ONLINE'));
 
 // [A] DETECTION LOGS
 app.post('/api/log', async (req, res) => {
