@@ -45,8 +45,29 @@ app.get('/api/hashes', async (req, res) => {
 
 // [D] DASHBOARD DATA
 app.get('/api/admin/logs', async (req, res) => {
+    console.log(`[${new Date().toLocaleString()}] Admin Panel is fetching logs...`);
     try {
-        const result = await pool.query('SELECT hwid, ip, log_message, date_recorded FROM anti_cheat_logs ORDER BY date_recorded DESC LIMIT 500');
+        // Ginawang mas simple ang DATE format para sa C++ Parser
+        const query = `
+            SELECT hwid, ip, log_message, 
+            TO_CHAR(date_recorded, 'YYYY-MM-DD HH24:MI:SS') as date_recorded 
+            FROM anti_cheat_logs 
+            ORDER BY date_recorded DESC 
+            LIMIT 500
+        `;
+        const result = await pool.query(query);
+        console.log(`- Found ${result.rows.length} logs in database.`);
+        res.json(result.rows);
+    } catch (err) { 
+        console.error("- Error fetching logs:", err.message);
+        res.status(500).json({ error: err.message }); 
+    }
+});
+
+// [E] HEARTBEAT DATA FOR DASHBOARD
+app.get('/api/admin/heartbeats', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT hwid, last_seen FROM heartbeats WHERE last_seen > CURRENT_TIMESTAMP - INTERVAL \'5 minutes\'');
         res.json(result.rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
