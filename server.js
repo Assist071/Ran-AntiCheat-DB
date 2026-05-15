@@ -21,45 +21,31 @@ const pool = new Pool({
     connectionString: connectionString,
 });
 
-// Helper para makuha ang exact PH Time (SQL Format)
-const getPhTimestamp = () => {
-    const d = new Date();
-    const phTime = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Asia/Manila',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false
-    }).format(d);
-    // Convert "DD/MM/YYYY, HH:MM:SS" -> "YYYY-MM-DD HH:MM:SS"
-    const [date, time] = phTime.split(', ');
-    const [day, month, year] = date.split('/');
-    return `${year}-${month}-${day} ${time}`;
-};
-
 // --- DATABASE INITIALIZATION ---
 const initDb = async () => {
     try {
+        await pool.query("SET TIME ZONE 'Asia/Manila'");
         await pool.query(`
             CREATE TABLE IF NOT EXISTS anti_cheat_logs (
                 id SERIAL PRIMARY KEY,
                 hwid TEXT,
                 ip TEXT,
                 log_message TEXT,
-                date_recorded TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')
+                date_recorded TIMESTAMPTZ DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS game_hashes (
                 id SERIAL PRIMARY KEY,
                 hash_value VARCHAR(64) UNIQUE NOT NULL,
                 status VARCHAR(20) DEFAULT 'active',
-                last_updated TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')
+                last_updated TIMESTAMPTZ DEFAULT NOW()
             );
             CREATE TABLE IF NOT EXISTS heartbeats (
                 hwid TEXT PRIMARY KEY,
                 ip TEXT,
-                last_seen TIMESTAMP DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')
+                last_seen TIMESTAMPTZ DEFAULT NOW()
             );
         `);
-        console.log(" - Database Tables Verified/Created.");
+        console.log(" - Database Tables Verified/Created with TIMESTAMPTZ.");
     } catch (err) {
         console.error(" - Database Init Error:", err.message);
     }
@@ -98,8 +84,7 @@ app.post('/api/log', async (req, res) => {
     }
 
     try {
-        const phNow = getPhTimestamp();
-        await pool.query('INSERT INTO anti_cheat_logs (hwid, ip, log_message, date_recorded) VALUES ($1, $2, $3, $4)', [hwid, ip, log, phNow]);
+        await pool.query('INSERT INTO anti_cheat_logs (hwid, ip, log_message, date_recorded) VALUES ($1, $2, $3, NOW())', [hwid, ip, log]);
         res.json({ status: 'ok' });
     } catch (err) { 
         console.error(" - DB Log Error:", err.message);
@@ -111,10 +96,9 @@ app.post('/api/log', async (req, res) => {
 app.post('/api/heartbeat', async (req, res) => {
     const { hwid, ip } = req.body;
     try {
-        const phNow = getPhTimestamp();
         await pool.query(
-            'INSERT INTO heartbeats (hwid, ip, last_seen) VALUES ($1, $2, $3) ON CONFLICT (hwid) DO UPDATE SET last_seen = EXCLUDED.last_seen, ip = EXCLUDED.ip',
-            [hwid, ip, phNow]
+            'INSERT INTO heartbeats (hwid, ip, last_seen) VALUES ($1, $2, NOW()) ON CONFLICT (hwid) DO UPDATE SET last_seen = EXCLUDED.last_seen, ip = EXCLUDED.ip',
+            [hwid, ip]
         );
         res.json({ status: 'ok' });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -170,10 +154,9 @@ app.post('/api/admin/hashes', async (req, res) => {
     const { hash_value, status } = req.body;
     console.log(`[ADMIN] Saving hash: ${hash_value}`);
     try {
-        const phNow = getPhTimestamp();
         await pool.query(
-            'INSERT INTO game_hashes (hash_value, status, last_updated) VALUES ($1, $2, $3) ON CONFLICT (hash_value) DO UPDATE SET status = EXCLUDED.status, last_updated = EXCLUDED.last_updated',
-            [hash_value, status || 'active', phNow]
+            'INSERT INTO game_hashes (hash_value, status, last_updated) VALUES ($1, $2, NOW()) ON CONFLICT (hash_value) DO UPDATE SET status = EXCLUDED.status, last_updated = NOW()',
+            [hash_value, status || 'active']
         );
         console.log(" - Hash saved successfully.");
         res.json({ status: 'ok' });
