@@ -146,6 +146,14 @@ app.get('/api/admin/logs', async (req, res) => {
     }
 });
 
+app.delete('/api/admin/logs', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM anti_cheat_logs');
+        console.log("[ADMIN] All logs cleared.");
+        res.json({ status: 'ok', message: 'All logs cleared' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // [E] HEARTBEAT DATA FOR DASHBOARD
 app.get('/api/admin/heartbeats', async (req, res) => {
     try {
@@ -183,6 +191,15 @@ app.post('/api/admin/hashes', async (req, res) => {
         console.error(" - Error saving hash:", err.message);
         res.status(500).json({ error: err.message }); 
     }
+});
+
+app.delete('/api/admin/hashes/:hash', async (req, res) => {
+    const { hash } = req.params;
+    try {
+        await pool.query('DELETE FROM game_hashes WHERE hash_value = $1', [hash]);
+        console.log(`[ADMIN] Hash deleted: ${hash}`);
+        res.json({ status: 'ok' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 const PORT = process.env.PORT || 3000;
