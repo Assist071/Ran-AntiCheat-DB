@@ -75,7 +75,8 @@ app.get('/api/test-log', (req, res) => {
 
 // [A] DETECTION LOGS
 app.post('/api/log', async (req, res) => {
-    const { hwid, ip, log } = req.body;
+    const { hwid, log } = req.body;
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '0.0.0.0').replace('::ffff:', '');
     
     // --- DEBUG FILE LOGGING ---
     try {
@@ -99,7 +100,8 @@ app.post('/api/log', async (req, res) => {
 
 // [B] HEARTBEATS
 app.post('/api/heartbeat', async (req, res) => {
-    const { hwid, ip } = req.body;
+    const { hwid } = req.body;
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '0.0.0.0').replace('::ffff:', '');
     try {
         await pool.query(
             'INSERT INTO heartbeats (hwid, ip, last_seen) VALUES ($1, $2, NOW()) ON CONFLICT (hwid) DO UPDATE SET last_seen = EXCLUDED.last_seen, ip = EXCLUDED.ip',
