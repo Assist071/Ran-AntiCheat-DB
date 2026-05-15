@@ -49,6 +49,11 @@ const initDb = async () => {
                 ip TEXT,
                 last_seen TIMESTAMPTZ DEFAULT NOW()
             );
+
+            -- Migration: Siguraduhin na TIMESTAMPTZ ang gamit kahit sa lumang tables
+            ALTER TABLE anti_cheat_logs ALTER COLUMN date_recorded TYPE TIMESTAMPTZ;
+            ALTER TABLE game_hashes ALTER COLUMN last_updated TYPE TIMESTAMPTZ;
+            ALTER TABLE heartbeats ALTER COLUMN last_seen TYPE TIMESTAMPTZ;
         `);
         console.log(" - Database Tables Verified/Created with TIMESTAMPTZ.");
     } catch (err) {
