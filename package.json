@@ -1,0 +1,16 @@
+{
+    "name": "ran-anticheat-api",
+    "version": "1.0.0",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "dependencies": {
+        "express": "^4.22.2",
+        "pg": "^8.20.0"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": ""
+}
