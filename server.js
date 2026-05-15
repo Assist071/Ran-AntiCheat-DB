@@ -72,5 +72,24 @@ app.get('/api/admin/heartbeats', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// [F] MANAGE HASHES
+app.get('/api/admin/hashes', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT game_name, hash_value, status FROM game_hashes ORDER BY id DESC');
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/admin/hashes', async (req, res) => {
+    const { game_name, hash_value, status } = req.body;
+    try {
+        await pool.query(
+            'INSERT INTO game_hashes (game_name, hash_value, status) VALUES ($1, $2, $3) ON CONFLICT (hash_value) DO UPDATE SET game_name = EXCLUDED.game_name, status = EXCLUDED.status',
+            [game_name, hash_value, status || 'active']
+        );
+        res.json({ status: 'ok' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`API Live on ${PORT}`));
