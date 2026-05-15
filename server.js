@@ -21,6 +21,21 @@ const pool = new Pool({
     connectionString: connectionString,
 });
 
+// Helper para makuha ang exact PH Time (SQL Format)
+const getPhTimestamp = () => {
+    const d = new Date();
+    const phTime = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+    }).format(d);
+    // Convert "DD/MM/YYYY, HH:MM:SS" -> "YYYY-MM-DD HH:MM:SS"
+    const [date, time] = phTime.split(', ');
+    const [day, month, year] = date.split('/');
+    return `${year}-${month}-${day} ${time}`;
+};
+
 // --- DATABASE INITIALIZATION ---
 const initDb = async () => {
     try {
@@ -83,7 +98,8 @@ app.post('/api/log', async (req, res) => {
     }
 
     try {
-        await pool.query('INSERT INTO anti_cheat_logs (hwid, ip, log_message) VALUES ($1, $2, $3)', [hwid, ip, log]);
+        const phNow = getPhTimestamp();
+        await pool.query('INSERT INTO anti_cheat_logs (hwid, ip, log_message, date_recorded) VALUES ($1, $2, $3, $4)', [hwid, ip, log, phNow]);
         res.json({ status: 'ok' });
     } catch (err) { 
         console.error(" - DB Log Error:", err.message);
@@ -95,9 +111,10 @@ app.post('/api/log', async (req, res) => {
 app.post('/api/heartbeat', async (req, res) => {
     const { hwid, ip } = req.body;
     try {
+        const phNow = getPhTimestamp();
         await pool.query(
-            'INSERT INTO heartbeats (hwid, ip, last_seen) VALUES ($1, $2, (CURRENT_TIMESTAMP AT TIME ZONE \'UTC\' AT TIME ZONE \'Asia/Manila\')) ON CONFLICT (hwid) DO UPDATE SET last_seen = EXCLUDED.last_seen, ip = EXCLUDED.ip',
-            [hwid, ip]
+            'INSERT INTO heartbeats (hwid, ip, last_seen) VALUES ($1, $2, $3) ON CONFLICT (hwid) DO UPDATE SET last_seen = EXCLUDED.last_seen, ip = EXCLUDED.ip',
+            [hwid, ip, phNow]
         );
         res.json({ status: 'ok' });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -153,9 +170,10 @@ app.post('/api/admin/hashes', async (req, res) => {
     const { hash_value, status } = req.body;
     console.log(`[ADMIN] Saving hash: ${hash_value}`);
     try {
+        const phNow = getPhTimestamp();
         await pool.query(
-            'INSERT INTO game_hashes (hash_value, status, last_updated) VALUES ($1, $2, (CURRENT_TIMESTAMP AT TIME ZONE \'UTC\' AT TIME ZONE \'Asia/Manila\')) ON CONFLICT (hash_value) DO UPDATE SET status = EXCLUDED.status, last_updated = (CURRENT_TIMESTAMP AT TIME ZONE \'UTC\' AT TIME ZONE \'Asia/Manila\')',
-            [hash_value, status || 'active']
+            'INSERT INTO game_hashes (hash_value, status, last_updated) VALUES ($1, $2, $3) ON CONFLICT (hash_value) DO UPDATE SET status = EXCLUDED.status, last_updated = EXCLUDED.last_updated',
+            [hash_value, status || 'active', phNow]
         );
         console.log(" - Hash saved successfully.");
         res.json({ status: 'ok' });
