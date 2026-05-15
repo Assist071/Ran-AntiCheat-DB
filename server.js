@@ -55,10 +55,13 @@ app.get('/', (req, res) => res.send('Anti-Cheat API is ONLINE'));
 
 app.get('/api/test-log', (req, res) => {
     try {
+        console.log(" - Received TEST LOG request from browser.");
+        const debugPath = 'C:\\Users\\User\\Desktop\\Ran-AntiCheat-DB\\hash_checker_debug.txt';
         const debugMsg = `[${new Date().toLocaleString()}] TEST LOG FROM BROWSER\n`;
-        fs.appendFileSync('hash_checker_debug.txt', debugMsg);
-        res.send('Test log recorded! Check hash_checker_debug.txt');
+        fs.appendFileSync(debugPath, debugMsg);
+        res.send('Test log recorded at ' + debugPath);
     } catch (err) {
+        console.error(" - File Write Error:", err.message);
         res.status(500).send("Error writing file: " + err.message);
     }
 });
@@ -69,8 +72,10 @@ app.post('/api/log', async (req, res) => {
     
     // --- DEBUG FILE LOGGING ---
     try {
+        const debugPath = 'C:\\Users\\User\\Desktop\\Ran-AntiCheat-DB\\hash_checker_debug.txt';
         const debugMsg = `[${new Date().toLocaleString()}] HWID: ${hwid} | IP: ${ip} | LOG: ${log}\n`;
-        fs.appendFileSync('hash_checker_debug.txt', debugMsg);
+        fs.appendFileSync(debugPath, debugMsg);
+        console.log(" - Debug log written to file.");
     } catch (fErr) {
         console.error(" - File Log Error:", fErr.message);
     }
