@@ -47,11 +47,17 @@ app.post('/api/submit-log', async (req, res) => {
             );
         }
 
-        // 2. If there are details (like a detection), save to activity_logs
+        // 2. If there are details (like a detection), save to activity_logs and increment violations
         if (details) {
             await pool.query(
                 'INSERT INTO activity_logs (hwid, action, details, timestamp) VALUES ($1, $2, $3, NOW())',
                 [hwid, 'Detection', details]
+            );
+
+            // Increment violations count in logs table
+            await pool.query(
+                'UPDATE logs SET violations = violations + 1 WHERE hwid = $1',
+                [hwid]
             );
 
             // 3. Special Case: If it's a Denied Hash, save to denied_hashes table
