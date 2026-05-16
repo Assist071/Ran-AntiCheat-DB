@@ -25,7 +25,7 @@ const getClientIp = (req) => {
 };
 
 // Auto-update database schema for instances
-pool.query('ALTER TABLE logs ADD COLUMN IF NOT EXISTS instances INT DEFAULT 1;').catch(err => console.error("DB Alter Error:", err));
+pool.query('ALTER TABLE logs ADD COLUMN IF NOT EXISTS instances INT DEFAULT 0;').catch(err => console.error("DB Alter Error:", err));
 
 // --- CLIENT ENDPOINTS (Para sa Game Client) ---
 
@@ -34,7 +34,7 @@ app.post('/api/submit-log', async (req, res) => {
     const { hwid, status, details, instances } = req.body;
     
     // Ensure instances is a valid integer
-    const clientInstances = parseInt(instances) || 1;
+    const clientInstances = parseInt(instances) || 0;
     const ip = getClientIp(req);
 
     console.log(`[DEBUG] Submission from HWID: ${hwid} | Clients detected: ${clientInstances}`);
