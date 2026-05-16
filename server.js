@@ -155,7 +155,7 @@ app.delete('/api/dll-hashes/:id', async (req, res) => {
 app.get('/api/logs', async (req, res) => {
     try {
         // Auto-set offline those who haven't sent heartbeat in 1 minute
-        await pool.query("UPDATE logs SET status = 'offline' WHERE last_online < NOW() - INTERVAL '1 minute'");
+        await pool.query("UPDATE logs SET status = 'offline', instances = 0 WHERE last_online < NOW() - INTERVAL '1 minute'");
         
         const result = await pool.query('SELECT * FROM logs ORDER BY last_online DESC');
         res.json(result.rows);
@@ -223,7 +223,7 @@ app.delete('/api/blacklist/:id', async (req, res) => {
 app.get('/api/stats', async (req, res) => {
     try {
         // Auto-set offline those who haven't sent heartbeat in 1 minute
-        await pool.query("UPDATE logs SET status = 'offline' WHERE last_online < NOW() - INTERVAL '1 minute'");
+        await pool.query("UPDATE logs SET status = 'offline', instances = 0 WHERE last_online < NOW() - INTERVAL '1 minute'");
 
         const hwidCount = await pool.query('SELECT COUNT(DISTINCT hwid) FROM logs');
         const onlineCount = await pool.query("SELECT COUNT(*) FROM logs WHERE status = 'online'");
