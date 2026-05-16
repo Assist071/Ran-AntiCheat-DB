@@ -24,11 +24,15 @@ const getClientIp = (req) => {
     return forwarded ? forwarded.split(',')[0] : req.socket.remoteAddress;
 };
 
+// Auto-update database schema for instances
+pool.query('ALTER TABLE logs ADD COLUMN IF NOT EXISTS instances INT DEFAULT 1;').catch(err => console.error("DB Alter Error:", err));
+
 // --- CLIENT ENDPOINTS (Para sa Game Client) ---
 
 // Heartbeat and Log Submission
 app.post('/api/submit-log', async (req, res) => {
-    const { hwid, status, details } = req.body;
+    const { hwid, status, details, instances } = req.body;
+    const clientInstances = instances || 1;
     const ip = getClientIp(req);
 
     try {
@@ -37,13 +41,13 @@ app.post('/api/submit-log', async (req, res) => {
         
         if (checkLog.rows.length > 0) {
             await pool.query(
-                'UPDATE logs SET ip = $1, status = $2, last_online = NOW() WHERE hwid = $3',
-                [ip, status || 'online', hwid]
+                'UPDATE logs SET ip = $1, status = $2, last_online = NOW(), instances = $3 WHERE hwid = $4',
+                [ip, status || 'online', clientInstances, hwid]
             );
         } else {
             await pool.query(
-                'INSERT INTO logs (hwid, ip, status, last_online) VALUES ($1, $2, $3, NOW())',
-                [hwid, ip, status || 'online']
+                'INSERT INTO logs (hwid, ip, status, last_online, instances) VALUES ($1, $2, $3, NOW(), $4)',
+                [hwid, ip, status || 'online', clientInstances]
             );
         }
 
