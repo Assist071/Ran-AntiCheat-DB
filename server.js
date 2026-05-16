@@ -32,17 +32,20 @@ app.post('/api/submit-log', async (req, res) => {
     const ip = getClientIp(req);
 
     try {
-        // 1. Update or Insert into Logs (Heartbeat)
-        await pool.query(
-            `INSERT INTO logs (hwid, ip, status, last_online)
-             VALUES ($1, $2, $3, NOW())
-             ON CONFLICT (hwid) 
-             DO UPDATE SET 
-                ip = EXCLUDED.ip,
-                status = EXCLUDED.status,
-                last_online = NOW()`,
-            [hwid, ip, status || 'online']
-        );
+        // 1. Update or Insert into Logs (Safe way)
+        const checkLog = await pool.query('SELECT * FROM logs WHERE hwid = $1', [hwid]);
+        
+        if (checkLog.rows.length > 0) {
+            await pool.query(
+                'UPDATE logs SET ip = $1, status = $2, last_online = NOW() WHERE hwid = $3',
+                [ip, status || 'online', hwid]
+            );
+        } else {
+            await pool.query(
+                'INSERT INTO logs (hwid, ip, status, last_online) VALUES ($1, $2, $3, NOW())',
+                [hwid, ip, status || 'online']
+            );
+        }
 
         // 2. If there are details (like a detection), save to activity_logs
         if (details) {
@@ -158,11 +161,11 @@ app.get('/api/blacklist', async (req, res) => {
 });
 
 app.post('/api/blacklist', async (req, res) => {
-    const { hwid, pc_name, username, reason, ip } = req.body;
+    const { hwid, reason, ip } = req.body;
     try {
         await pool.query(
-            'INSERT INTO blacklist (hwid, pc_name, username, reason, ip, status, date_banned) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
-            [hwid, pc_name, username, reason, ip || 'N/A', 'banned']
+            'INSERT INTO blacklist (hwid, reason, ip, status, date_banned) VALUES ($1, $2, $3, $4, NOW())',
+            [hwid, reason, ip || 'N/A', 'banned']
         );
         res.json({ success: true });
     } catch (err) {
