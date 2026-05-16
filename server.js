@@ -214,6 +214,9 @@ app.delete('/api/blacklist/:id', async (req, res) => {
 // Stats
 app.get('/api/stats', async (req, res) => {
     try {
+        // Auto-set offline those who haven't sent heartbeat in 1 minute
+        await pool.query("UPDATE logs SET status = 'offline' WHERE last_online < NOW() - INTERVAL '1 minute'");
+
         const hwidCount = await pool.query('SELECT COUNT(DISTINCT hwid) FROM logs');
         const onlineCount = await pool.query("SELECT COUNT(*) FROM logs WHERE status = 'online'");
         const offlineCount = await pool.query("SELECT COUNT(*) FROM logs WHERE status = 'offline'");
