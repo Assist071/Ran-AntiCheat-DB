@@ -35,6 +35,8 @@ app.post('/api/submit-log', async (req, res) => {
     const clientInstances = instances || 1;
     const ip = getClientIp(req);
 
+    console.log(`[DEBUG] Log from ${hwid} (${ip}) | Status: ${status} | Instances: ${instances}`);
+
     try {
         // 1. Update or Insert into Logs (Safe way)
         const checkLog = await pool.query('SELECT * FROM logs WHERE hwid = $1', [hwid]);
