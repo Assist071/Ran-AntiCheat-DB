@@ -194,6 +194,19 @@ app.delete('/api/blacklist/:id', async (req, res) => {
     }
 });
 
+// Clear all activity and denied logs
+app.delete('/api/logs/clear', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM activity_logs');
+        await pool.query('DELETE FROM denied_hashes');
+        // Reset violations count in logs table to 0
+        await pool.query('UPDATE logs SET violations = 0');
+        res.json({ success: true, message: 'All logs cleared' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/stats', async (req, res) => {
     try {
         await pool.query("UPDATE logs SET status = 'offline' WHERE last_online < NOW() - INTERVAL '1 minute'");
