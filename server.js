@@ -28,22 +28,20 @@ const getClientIp = (req) => {
 
 // Heartbeat and Log Submission
 app.post('/api/submit-log', async (req, res) => {
-    const { hwid, pc_name, username, status, details } = req.body;
-    const ip_address = getClientIp(req);
+    const { hwid, status, details } = req.body;
+    const ip = getClientIp(req);
 
     try {
         // 1. Update or Insert into Logs (Heartbeat)
         await pool.query(
-            `INSERT INTO logs (hwid, pc_name, username, ip_address, status, last_online)
-             VALUES ($1, $2, $3, $4, $5, NOW())
+            `INSERT INTO logs (hwid, ip, status, last_online)
+             VALUES ($1, $2, $3, NOW())
              ON CONFLICT (hwid) 
              DO UPDATE SET 
-                pc_name = EXCLUDED.pc_name,
-                username = EXCLUDED.username,
-                ip_address = EXCLUDED.ip_address,
+                ip = EXCLUDED.ip,
                 status = EXCLUDED.status,
                 last_online = NOW()`,
-            [hwid, pc_name, username, ip_address, status || 'online']
+            [hwid, ip, status || 'online']
         );
 
         // 2. If there are details (like a detection), save to activity_logs
@@ -160,11 +158,11 @@ app.get('/api/blacklist', async (req, res) => {
 });
 
 app.post('/api/blacklist', async (req, res) => {
-    const { hwid, pc_name, username, reason } = req.body;
+    const { hwid, pc_name, username, reason, ip } = req.body;
     try {
         await pool.query(
-            'INSERT INTO blacklist (hwid, pc_name, username, reason, status, date_banned) VALUES ($1, $2, $3, $4, $5, NOW())',
-            [hwid, pc_name, username, reason, 'banned']
+            'INSERT INTO blacklist (hwid, pc_name, username, reason, ip, status, date_banned) VALUES ($1, $2, $3, $4, $5, $6, NOW())',
+            [hwid, pc_name, username, reason, ip || 'N/A', 'banned']
         );
         res.json({ success: true });
     } catch (err) {
