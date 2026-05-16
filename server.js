@@ -150,6 +150,16 @@ app.get('/api/logs', async (req, res) => {
     }
 });
 
+// Denied Hashes
+app.get('/api/denied-hashes', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM denied_hashes ORDER BY timestamp DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Blacklist
 app.get('/api/blacklist', async (req, res) => {
     try {
