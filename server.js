@@ -52,6 +52,18 @@ app.post('/api/submit-log', async (req, res) => {
                 'INSERT INTO activity_logs (hwid, action, details, timestamp) VALUES ($1, $2, $3, NOW())',
                 [hwid, 'Detection', details]
             );
+
+            // 3. Special Case: If it's a Denied Hash, save to denied_hashes table
+            if (details.includes("DENIED: Hash")) {
+                // Extract the hash from the message
+                const hashMatch = details.match(/Hash ([a-f0-9]+)/i);
+                const extractedHash = hashMatch ? hashMatch[1] : 'Unknown';
+                
+                await pool.query(
+                    'INSERT INTO denied_hashes (hash, attempted_by, timestamp, reason) VALUES ($1, $2, NOW(), $3)',
+                    [extractedHash, hwid, 'DLL Hash not in whitelist']
+                );
+            }
         }
 
         res.json({ success: true, message: 'Log processed' });
