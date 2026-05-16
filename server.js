@@ -99,6 +99,22 @@ app.post('/api/dll-hashes', async (req, res) => {
     }
 });
 
+// Check if a specific hash is approved
+app.get('/api/check-hash/:hash', async (req, res) => {
+    try {
+        const result = await pool.query(
+            "SELECT * FROM dll_hashes WHERE LOWER(hash) = LOWER($1) AND status = 'active'",
+            [req.params.hash]
+        );
+        if (result.rows.length > 0) {
+            return res.json({ approved: true });
+        }
+        res.json({ approved: false });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.delete('/api/dll-hashes/:id', async (req, res) => {
     try {
         await pool.query('DELETE FROM dll_hashes WHERE id = $1', [req.params.id]);
