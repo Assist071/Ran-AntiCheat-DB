@@ -160,6 +160,19 @@ app.get('/api/denied-hashes', async (req, res) => {
     }
 });
 
+// Activity Logs for a specific HWID
+app.get('/api/activity-logs/:hwid', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM activity_logs WHERE hwid = $1 ORDER BY timestamp DESC',
+            [req.params.hwid]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Blacklist
 app.get('/api/blacklist', async (req, res) => {
     try {
