@@ -32,10 +32,12 @@ pool.query('ALTER TABLE logs ADD COLUMN IF NOT EXISTS instances INT DEFAULT 1;')
 // Heartbeat and Log Submission
 app.post('/api/submit-log', async (req, res) => {
     const { hwid, status, details, instances } = req.body;
-    const clientInstances = instances || 1;
+    
+    // Ensure instances is a valid integer
+    const clientInstances = parseInt(instances) || 1;
     const ip = getClientIp(req);
 
-    console.log(`[DEBUG] Log from ${hwid} (${ip}) | Status: ${status} | Instances: ${instances}`);
+    console.log(`[DEBUG] Submission from HWID: ${hwid} | Clients detected: ${clientInstances}`);
 
     try {
         // 1. Update or Insert into Logs (Safe way)
