@@ -1,207 +1,178 @@
-const express = require('express');
-const { Pool } = require('pg');
+import express from 'express';
+import pg from 'pg';
+import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const { Pool } = pg;
 const app = express();
-const cors = require('cors');
-const fs = require('fs');
+const port = process.env.PORT || 5000;
 
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
 
-// --- GLOBAL REQUEST LOGGER ---
-app.use((req, res, next) => {
-    const phTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true });
-    console.log(`[${phTime}] ${req.method} ${req.url}`);
-    next();
-});
-
-// Iyong Neon Connection String
-const connectionString = "postgresql://neondb_owner:npg_kczdR6Ajyo7C@ep-odd-cake-aozdfekp-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
-
+// Set Timezone to Manila for the database connection
 const pool = new Pool({
-    connectionString: connectionString,
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false } // Required for Render/Neon
 });
 
-// Siguraduhin na lahat ng bagong connection sa pool ay naka-Asia/Manila timezone
-pool.on('connect', (client) => {
-    client.query("SET TIME ZONE 'Asia/Manila'");
-});
-
-// --- DATABASE INITIALIZATION ---
-const initDb = async () => {
-    try {
-        await pool.query("SET TIME ZONE 'Asia/Manila'");
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS anti_cheat_logs (
-                id SERIAL PRIMARY KEY,
-                hwid TEXT,
-                ip TEXT,
-                log_message TEXT,
-                date_recorded TIMESTAMPTZ DEFAULT NOW()
-            );
-            CREATE TABLE IF NOT EXISTS game_hashes (
-                id SERIAL PRIMARY KEY,
-                hash_value VARCHAR(64) UNIQUE NOT NULL,
-                status VARCHAR(20) DEFAULT 'active',
-                last_updated TIMESTAMPTZ DEFAULT NOW()
-            );
-            CREATE TABLE IF NOT EXISTS heartbeats (
-                hwid TEXT PRIMARY KEY,
-                ip TEXT,
-                last_seen TIMESTAMPTZ DEFAULT NOW()
-            );
-
-            -- Migration: Siguraduhin na TIMESTAMPTZ ang gamit kahit sa lumang tables
-            ALTER TABLE anti_cheat_logs ALTER COLUMN date_recorded TYPE TIMESTAMPTZ;
-            ALTER TABLE game_hashes ALTER COLUMN last_updated TYPE TIMESTAMPTZ;
-            ALTER TABLE heartbeats ALTER COLUMN last_seen TYPE TIMESTAMPTZ;
-        `);
-        console.log(" - Database Tables Verified/Created with TIMESTAMPTZ.");
-    } catch (err) {
-        console.error(" - Database Init Error:", err.message);
-    }
+// Helper to get Client IP
+const getClientIp = (req) => {
+    const forwarded = req.headers['x-forwarded-for'];
+    return forwarded ? forwarded.split(',')[0] : req.socket.remoteAddress;
 };
-initDb();
 
-// TEST ENDPOINTS
-app.get('/', (req, res) => res.send('Anti-Cheat API is ONLINE'));
-app.get('/ping', (req, res) => res.send('pong'));
+// --- CLIENT ENDPOINTS (Para sa Game Client) ---
 
-app.get('/api/test-log', (req, res) => {
+// Heartbeat and Log Submission
+app.post('/api/submit-log', async (req, res) => {
+    const { hwid, pc_name, username, status, details } = req.body;
+    const ip_address = getClientIp(req);
+
     try {
-        const phTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true });
-        const debugPath = 'C:\\Users\\User\\Desktop\\Ran-AntiCheat-DB\\hash_checker_debug.txt';
-        const debugMsg = `[${phTime}] TEST LOG FROM BROWSER\n`;
-        fs.appendFileSync(debugPath, debugMsg);
-        res.send('Test log recorded at ' + debugPath);
+        // 1. Update or Insert into Logs (Heartbeat)
+        await pool.query(
+            `INSERT INTO logs (hwid, pc_name, username, ip_address, status, last_online)
+             VALUES ($1, $2, $3, $4, $5, NOW())
+             ON CONFLICT (hwid) 
+             DO UPDATE SET 
+                pc_name = EXCLUDED.pc_name,
+                username = EXCLUDED.username,
+                ip_address = EXCLUDED.ip_address,
+                status = EXCLUDED.status,
+                last_online = NOW()`,
+            [hwid, pc_name, username, ip_address, status || 'online']
+        );
+
+        // 2. If there are details (like a detection), save to activity_logs
+        if (details) {
+            await pool.query(
+                'INSERT INTO activity_logs (hwid, action, details, timestamp) VALUES ($1, $2, $3, NOW())',
+                [hwid, 'Detection', details]
+            );
+        }
+
+        res.json({ success: true, message: 'Log processed' });
     } catch (err) {
-        console.error(" - File Write Error:", err.message);
-        res.status(500).send("Error writing file: " + err.message);
+        console.error(err);
+        res.status(500).json({ error: err.message });
     }
 });
 
-// [A] DETECTION LOGS
-app.post('/api/log', async (req, res) => {
-    const { hwid, log } = req.body;
-    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '0.0.0.0').replace('::ffff:', '');
-    
-    // --- DEBUG FILE LOGGING ---
+// Check if HWID is blacklisted
+app.get('/api/check-auth/:hwid', async (req, res) => {
     try {
-        const phTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true });
-        const debugPath = 'C:\\Users\\User\\Desktop\\Ran-AntiCheat-DB\\hash_checker_debug.txt';
-        const debugMsg = `[${phTime}] HWID: ${hwid} | IP: ${ip} | LOG: ${log}\n`;
-        fs.appendFileSync(debugPath, debugMsg);
-        console.log(" - Debug log written to file.");
-    } catch (fErr) {
-        console.error(" - File Log Error:", fErr.message);
-    }
-
-    try {
-        await pool.query('INSERT INTO anti_cheat_logs (hwid, ip, log_message, date_recorded) VALUES ($1, $2, $3, NOW())', [hwid, ip, log]);
-        res.json({ status: 'ok' });
-    } catch (err) { 
-        console.error(" - DB Log Error:", err.message);
-        res.status(500).json({ error: err.message }); 
+        const result = await pool.query('SELECT * FROM blacklist WHERE hwid = $1', [req.params.hwid]);
+        if (result.rows.length > 0) {
+            return res.json({ banned: true, reason: result.rows[0].reason });
+        }
+        res.json({ banned: false });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
-// [B] HEARTBEATS
-app.post('/api/heartbeat', async (req, res) => {
-    const { hwid } = req.body;
-    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '0.0.0.0').replace('::ffff:', '');
+// --- ADMIN ENDPOINTS (Para sa Dashboard) ---
+
+// DLL Hashes
+app.get('/api/dll-hashes', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM dll_hashes ORDER BY last_update DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/dll-hashes', async (req, res) => {
+    const { hash } = req.body;
+    try {
+        const result = await pool.query(
+            'INSERT INTO dll_hashes (hash, status) VALUES ($1, $2) RETURNING *',
+            [hash, 'active']
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/dll-hashes/:id', async (req, res) => {
+    try {
+        await pool.query('DELETE FROM dll_hashes WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Logs (Dashboard view)
+app.get('/api/logs', async (req, res) => {
+    try {
+        // Auto-set offline those who haven't sent heartbeat in 1 minute
+        await pool.query("UPDATE logs SET status = 'offline' WHERE last_online < NOW() - INTERVAL '1 minute'");
+        
+        const result = await pool.query('SELECT * FROM logs ORDER BY last_online DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Blacklist
+app.get('/api/blacklist', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM blacklist ORDER BY date_banned DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/blacklist', async (req, res) => {
+    const { hwid, pc_name, username, reason } = req.body;
     try {
         await pool.query(
-            'INSERT INTO heartbeats (hwid, ip, last_seen) VALUES ($1, $2, NOW()) ON CONFLICT (hwid) DO UPDATE SET last_seen = EXCLUDED.last_seen, ip = EXCLUDED.ip',
-            [hwid, ip]
+            'INSERT INTO blacklist (hwid, pc_name, username, reason, status, date_banned) VALUES ($1, $2, $3, $4, $5, NOW())',
+            [hwid, pc_name, username, reason, 'banned']
         );
-        res.json({ status: 'ok' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// [C] HASH AUTH
-app.get('/api/hashes', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT hash_value, status, last_updated FROM game_hashes WHERE status = \'active\'');
-        res.json(result.rows);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// [D] DASHBOARD DATA
-app.get('/api/admin/logs', async (req, res) => {
-    const phTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: true });
-    console.log(`[${phTime}] Admin Panel is fetching logs...`);
-    try {
-        // Ginawang mas simple ang DATE format para sa C++ Parser
-        const query = `
-            SELECT hwid, ip, log_message, 
-            TO_CHAR(date_recorded, 'YYYY-MM-DD HH24:MI:SS') as date_recorded 
-            FROM anti_cheat_logs 
-            ORDER BY date_recorded DESC 
-            LIMIT 500
-        `;
-        const result = await pool.query(query);
-        console.log(`- Found ${result.rows.length} logs in database.`);
-        res.json(result.rows);
-    } catch (err) { 
-        console.error("- Error fetching logs:", err.message);
-        res.status(500).json({ error: err.message }); 
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
-app.delete('/api/admin/logs', async (req, res) => {
+app.delete('/api/blacklist/:id', async (req, res) => {
     try {
-        await pool.query('DELETE FROM anti_cheat_logs');
-        console.log("[ADMIN] All logs cleared.");
-        res.json({ status: 'ok', message: 'All logs cleared' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// [E] HEARTBEAT DATA FOR DASHBOARD
-app.get('/api/admin/heartbeats', async (req, res) => {
-    try {
-        // Return raw epoch seconds for 100% accuracy in C++
-        const query = `
-            SELECT hwid, ip,
-            EXTRACT(EPOCH FROM last_seen)::INT as last_seen
-            FROM heartbeats 
-            WHERE last_seen > NOW() - INTERVAL '30 days'
-        `;
-        const result = await pool.query(query);
-        res.json(result.rows);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// [F] MANAGE HASHES
-app.get('/api/admin/hashes', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT hash_value, status, last_updated FROM game_hashes ORDER BY id DESC');
-        res.json(result.rows);
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/admin/hashes', async (req, res) => {
-    const { hash_value, status } = req.body;
-    console.log(`[ADMIN] Saving hash: ${hash_value}`);
-    try {
-        await pool.query(
-            'INSERT INTO game_hashes (hash_value, status, last_updated) VALUES ($1, $2, NOW()) ON CONFLICT (hash_value) DO UPDATE SET status = EXCLUDED.status, last_updated = NOW()',
-            [hash_value, status || 'active']
-        );
-        console.log(" - Hash saved successfully.");
-        res.json({ status: 'ok' });
-    } catch (err) { 
-        console.error(" - Error saving hash:", err.message);
-        res.status(500).json({ error: err.message }); 
+        await pool.query('DELETE FROM blacklist WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
-app.delete('/api/admin/hashes/:hash', async (req, res) => {
-    const { hash } = req.params;
+// Stats
+app.get('/api/stats', async (req, res) => {
     try {
-        await pool.query('DELETE FROM game_hashes WHERE hash_value = $1', [hash]);
-        console.log(`[ADMIN] Hash deleted: ${hash}`);
-        res.json({ status: 'ok' });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+        const hwidCount = await pool.query('SELECT COUNT(DISTINCT hwid) FROM logs');
+        const onlineCount = await pool.query("SELECT COUNT(*) FROM logs WHERE status = 'online'");
+        const offlineCount = await pool.query("SELECT COUNT(*) FROM logs WHERE status = 'offline'");
+        const blockedCount = await pool.query("SELECT COUNT(*) FROM blacklist WHERE status = 'banned'");
+
+        res.json({
+            totalHwids: hwidCount.rows[0].count,
+            online: onlineCount.rows[0].count,
+            offline: offlineCount.rows[0].count,
+            blocked: blockedCount.rows[0].count
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`API Live on ${PORT}`));
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+});
+
