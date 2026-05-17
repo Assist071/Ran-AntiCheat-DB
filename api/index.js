@@ -207,7 +207,7 @@ app.delete('/api/dll-hashes/:id', async (req, res) => {
 app.get('/api/logs', async (req, res) => {
     try {
         await pool.query("UPDATE logs SET status = 'offline', instances = 0 WHERE last_online < NOW() - INTERVAL '1 minute'");
-        const result = await pool.query('SELECT * FROM logs ORDER BY last_online DESC');
+        const result = await pool.query('SELECT * FROM logs ORDER BY id DESC');
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
