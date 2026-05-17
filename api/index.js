@@ -10,6 +10,9 @@ dotenv.config();
 const { Pool } = pg;
 const app = express();
 
+// Trust Vercel's proxy for rate limiter to work correctly
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json());
 
