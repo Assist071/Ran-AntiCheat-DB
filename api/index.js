@@ -41,8 +41,8 @@ const initAuthDb = async () => {
         // Seed initial users if table is empty
         const checkUsers = await pool.query('SELECT * FROM admin_users LIMIT 1');
         if (checkUsers.rows.length === 0) {
-            const adminHash = await bcrypt.hash('admin123', 10);
-            await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', ['admin', adminHash, 'admin']);
+            const adminHash = await bcrypt.hash('adminadmin', 10);
+            await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', ['crimsonranep9', adminHash, 'admin']);
             console.log("Default admin account created in DB!");
         }
     } catch (err) {
