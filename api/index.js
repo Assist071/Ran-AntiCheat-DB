@@ -3,6 +3,7 @@ import pg from 'pg';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 
@@ -11,6 +12,22 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// --- RATE LIMITERS ---
+const apiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 150, // Limit each IP to 150 requests per windowMs
+    message: { error: 'Too many requests, please try again later.' }
+});
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Limit each IP to 10 login requests per windowMs
+    message: { success: false, message: 'Too many login attempts, please try again later.' }
+});
+
+// Apply general limiter to all API routes
+app.use('/api/', apiLimiter);
 
 // Set Timezone to Manila for the database connection
 const pool = new Pool({
@@ -114,7 +131,7 @@ app.get('/api/check-auth/:hwid', async (req, res) => {
 });
 
 // --- AUTHENTICATION ---
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginLimiter, async (req, res) => {
     const { username, password } = req.body;
     
     try {
