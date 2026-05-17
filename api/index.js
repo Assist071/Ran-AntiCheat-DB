@@ -2,6 +2,7 @@ import express from 'express';
 import pg from 'pg';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
@@ -25,6 +26,32 @@ const getClientIp = (req) => {
 
 // Auto-update database schema for instances
 pool.query('ALTER TABLE logs ADD COLUMN IF NOT EXISTS instances INT DEFAULT 0;').catch(err => console.error("DB Alter Error:", err));
+
+// Auto-create users table for authentication
+const initAuthDb = async () => {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS admin_users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role VARCHAR(20) DEFAULT 'client'
+            );
+        `);
+        // Seed initial users if table is empty
+        const checkUsers = await pool.query('SELECT * FROM admin_users LIMIT 1');
+        if (checkUsers.rows.length === 0) {
+            const adminHash = await bcrypt.hash('admin123', 10);
+            const clientHash = await bcrypt.hash('client123', 10);
+            await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', ['admin', adminHash, 'admin']);
+            await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', ['client', clientHash, 'client']);
+            console.log("Default admin and client accounts created in DB!");
+        }
+    } catch (err) {
+        console.error("Auth DB Init Error:", err);
+    }
+};
+initAuthDb();
 
 // --- CLIENT ENDPOINTS ---
 
@@ -83,6 +110,29 @@ app.get('/api/check-auth/:hwid', async (req, res) => {
             return res.json({ banned: true, reason: result.rows[0].reason });
         }
         res.json({ banned: false });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- AUTHENTICATION ---
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+    
+    try {
+        const result = await pool.query('SELECT * FROM admin_users WHERE username = $1', [username]);
+        if (result.rows.length === 0) {
+            return res.status(401).json({ success: false, message: 'Invalid username or password' });
+        }
+
+        const user = result.rows[0];
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+
+        if (isMatch) {
+            return res.json({ success: true, role: user.role });
+        } else {
+            return res.status(401).json({ success: false, message: 'Invalid username or password' });
+        }
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
