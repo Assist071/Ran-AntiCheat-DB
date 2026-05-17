@@ -35,17 +35,15 @@ const initAuthDb = async () => {
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                role VARCHAR(20) DEFAULT 'client'
+                role VARCHAR(20) DEFAULT 'admin'
             );
         `);
         // Seed initial users if table is empty
         const checkUsers = await pool.query('SELECT * FROM admin_users LIMIT 1');
         if (checkUsers.rows.length === 0) {
             const adminHash = await bcrypt.hash('admin123', 10);
-            const clientHash = await bcrypt.hash('client123', 10);
             await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', ['admin', adminHash, 'admin']);
-            await pool.query('INSERT INTO admin_users (username, password_hash, role) VALUES ($1, $2, $3)', ['client', clientHash, 'client']);
-            console.log("Default admin and client accounts created in DB!");
+            console.log("Default admin account created in DB!");
         }
     } catch (err) {
         console.error("Auth DB Init Error:", err);
